@@ -581,49 +581,43 @@ class IniChainBot:
             return False
 
     def perform_swap(self, account_info):
-        """在INI和USDT之间随机执行兑换"""
         try:
-            # 先获取当前INI余额
+            # 获取 INI 余额
             ini_balance = w3.eth.get_balance(self.address)
-            formatted_balance = w3.from_wei(ini_balance, 'ether')
+            formatted_ini_balance = w3.from_wei(ini_balance, 'ether')
             
-            # 计算Gas费用
-            gas_price = self.get_gas_price()
-            estimated_gas = 201306  # 成功交易的Gas限制
-            gas_cost = gas_price * estimated_gas
+            print(f"[{account_info}] 当前 INI 余额: {formatted_ini_balance:.6f}")
             
-            # 保留一些INI用于未来的Gas（当前Gas费用的1.2倍）
-            safe_balance = ini_balance - (gas_cost * 1.2)
-            
-            if safe_balance > gas_cost:
-                # 将10-25%的INI兑换为USDT
-                swap_percentage = random.uniform(0.10, 0.25)
-                amount_to_swap = float(w3.from_wei(int(safe_balance * swap_percentage), 'ether'))
-                
-                print(f"[{account_info}] 当前余额: {formatted_balance:.6f} INI")
-                print(f"[{account_info}] Gas费用: {w3.from_wei(gas_cost, 'ether'):.6f} INI")
-                print(f"[{account_info}] 安全余额: {w3.from_wei(safe_balance, 'ether'):.6f} INI")
-                print(f"[{account_info}] 将兑换: {amount_to_swap:.6f} INI ({swap_percentage*100:.1f}% 从安全余额)")
-                
-                self.swap_ini_to_usdt(amount_to_swap, account_info)
-            else:
-                # 检查USDT余额
+            # 如果 INI 余额小于 0.2，尝试用 USDT 兑换
+            if formatted_ini_balance < 0.2:
+                # 检查 USDT 余额
                 usdt_balance = self.get_token_balance(USDT_CONTRACT)
-                formatted_balance = self.format_amount(usdt_balance, USDT_DECIMALS)
+                formatted_usdt_balance = self.format_amount(usdt_balance, USDT_DECIMALS)
+                
+                print(f"[{account_info}] INI 余额低于 0.2，当前 USDT 余额: {formatted_usdt_balance:.6f}")
                 
                 if usdt_balance > 0:
-                    # 将80-90%的USDT兑换为INI
+                    # 将 80-90% 的 USDT 换成 INI
                     swap_percentage = random.uniform(0.80, 0.90)
-                    amount_to_swap = formatted_balance * swap_percentage
+                    amount_to_swap = formatted_usdt_balance * swap_percentage
                     
-                    print(f"[{account_info}] USDT余额: {formatted_balance:.6f}")
-                    print(f"[{account_info}] 将兑换: {amount_to_swap:.6f} USDT 到 INI ({swap_percentage*100:.1f}% 从余额)")
+                    print(f"[{account_info}] 将兑换 {amount_to_swap:.6f} USDT 到 INI ({swap_percentage*100:.1f}%)")
                     
                     self.swap_usdt_to_ini(amount_to_swap, account_info)
                 else:
-                    print(f"[{account_info}] INI余额不足以进行兑换")
-                    print(f"[{account_info}] 当前余额: {formatted_balance:.6f} INI")
-                    print(f"[{account_info}] 最低Gas费用: {w3.from_wei(gas_cost * 1.2, 'ether'):.6f} INI")
+                    print(f"[{account_info}] USDT 余额为 0，无法兑换")
+            else:
+                # INI 余额充足，可以考虑兑换一部分为 USDT
+                gas_price = self.get_gas_price()
+                estimated_gas = 201306
+                gas_cost = gas_price * estimated_gas
+                safe_balance = ini_balance - (gas_cost * 1.2)
+                
+                if safe_balance > gas_cost:
+                    swap_percentage = random.uniform(0.10, 0.25)
+                    amount_to_swap = float(w3.from_wei(int(safe_balance * swap_percentage), 'ether'))
+                    print(f"[{account_info}] INI 余额充足，将兑换 {amount_to_swap:.6f} INI 到 USDT ({swap_percentage*100:.1f}%)")
+                    self.swap_ini_to_usdt(amount_to_swap, account_info)
                 
         except Exception as e:
             print(f"[{account_info}] 兑换时出错: {str(e)}")
