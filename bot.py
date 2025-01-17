@@ -835,6 +835,36 @@ def auto_daily_and_swap(private_keys):
             print("尝试继续下一个周期...")
             time.sleep(10)
 
+def cycle_send_ini_to_self(private_keys):
+    """每1分钟循环向自身地址发送INI"""
+    cycle_count = 1
+    while True:
+        try:
+            print(f"\n{'='*50}")
+            print(f"开始第 {cycle_count} 个发送INI循环...")
+            print(f"{'='*50}")
+            
+            # 执行发送INI到自身
+            send_ini_to_self(private_keys)
+            print(f"\n第 {cycle_count} 个发送循环完成")
+            print("等待1分钟后开始下一个循环...")
+            
+            # 倒计时
+            for i in range(60, 0, -1):  # 60秒 = 1分钟
+                print(f"\r下一次发送的倒计时: {i:02d} 秒", end="")
+                time.sleep(1)
+            
+            print("\n")  # 倒计时结束后的换行
+            cycle_count += 1
+            
+        except KeyboardInterrupt:
+            print("\n停止发送INI循环...")
+            break
+        except Exception as e:
+            print(f"\n循环中出错: {str(e)}")
+            print("尝试继续下一个循环...")
+            time.sleep(5)
+
 def show_menu():
     """显示交互菜单"""
     print("\n=== 菜单 ===")
@@ -843,7 +873,7 @@ def show_menu():
     print("3. INI-USDT兑换")
     print("4. 创建代币")
     print("5. 自动（每日签到 & 兑换 & 发送INI到自身）")
-    print("6. 发送INI到自身")
+    print("6. 循环发送INI到自身(每1分钟)")
     print("7. 退出")
     return input("请选择菜单 (1-7): ")
 
@@ -984,9 +1014,10 @@ def main():
             print("按 Ctrl+C 停止")
             auto_daily_and_swap(private_keys)
         elif choice == "6":
-            print("\n=== 发送INI到自身 ===")
-            print("机器人将发送余额的3-5% INI到自身地址")
-            send_ini_to_self(private_keys)
+            print("\n=== 循环发送INI到自身 ===")
+            print("机器人将每1分钟发送余额的3-5% INI到自身地址")
+            print("按 Ctrl+C 停止")
+            cycle_send_ini_to_self(private_keys)
         elif choice == "7":
             print("\n感谢您使用机器人!")
             break

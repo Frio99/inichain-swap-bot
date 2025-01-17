@@ -47,7 +47,7 @@ IniChain Bot 是一个用于自动执行每日签到、代币兑换、创建新�
 1. **克隆仓库**
 
    ```bash
-   git clone https://github.com/ziqing888/inichain-swap-bot.git
+   git clone https://github.com/Fri99/inichain-swap-bot.git
    cd inichain-swap-bot
    ```
 2.创建并激活虚拟环境（推荐）
