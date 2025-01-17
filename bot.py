@@ -836,46 +836,132 @@ def auto_daily_and_swap(private_keys):
             time.sleep(10)
 
 def cycle_send_ini_to_self(private_keys):
-    """每1分钟循环向自身地址发送INI"""
-    cycle_count = 1
-    while True:
-        try:
-            print(f"\n{'='*50}")
-            print(f"开始第 {cycle_count} 个发送INI循环...")
-            print(f"{'='*50}")
+    """每20-30秒随机发送INI到自身地址"""
+    print("\n=== 开始循环转账 ===")
+    cycle_count = 0
+    pending_txs = []
+    nonce_tracker = {}  # 跟踪每个地址的nonce
+    MIN_INTERVAL = 20
+    MAX_INTERVAL = 30
+
+    try:
+        while True:
+            cycle_start_time = time.time()
             
-            # 执行发送INI到自身
-            send_ini_to_self(private_keys)
-            print(f"\n第 {cycle_count} 个发送循环完成")
-            print("等待1分钟后开始下一个循环...")
-            
-            # 倒计时
-            for i in range(60, 0, -1):  # 60秒 = 1分钟
-                print(f"\r下一次发送的倒计时: {i:02d} 秒", end="")
+            for i, private_key in enumerate(private_keys, 1):
+                try:
+                    bot = IniChainBot(private_key)
+                    account_info = f"账户 {i} | {bot.address[-4:]}"
+                    
+                    # 获取或更新nonce
+                    current_nonce = w3.eth.get_transaction_count(bot.address)
+                    nonce_tracker[bot.address] = max(
+                        current_nonce,
+                        nonce_tracker.get(bot.address, current_nonce)
+                    )
+                    
+                    balance = w3.eth.get_balance(bot.address)
+                    formatted_balance = w3.from_wei(balance, 'ether')
+                    
+                    gas_price = w3.eth.gas_price
+                    gas_price = int(gas_price * 1.1)  # 增加10%的gas价格
+                    estimated_gas = 21000
+                    gas_cost = gas_price * estimated_gas
+                    safe_balance = balance - gas_cost
+                    
+                    if safe_balance <= 0:
+                        print(f"[{account_info}] 余额不足")
+                        continue
+                    
+                    percentage = random.uniform(0.03, 0.05)
+                    amount_to_send = int(safe_balance * percentage)
+                    
+                    if amount_to_send <= 0:
+                        print(f"[{account_info}] 转账金额过小")
+                        continue
+                    
+                    print(f"\n[{account_info}] 发送新交易...")
+                    print(f"[{account_info}] 当前余额: {formatted_balance:.6f} INI")
+                    print(f"[{account_info}] 转账金额: {w3.from_wei(amount_to_send, 'ether'):.6f} INI ({percentage*100:.2f}%)")
+                    print(f"[{account_info}] Gas价格: {w3.from_wei(gas_price, 'gwei'):.2f} Gwei")
+                    print(f"[{account_info}] Nonce: {nonce_tracker[bot.address]}")
+                    
+                    transaction = {
+                        'nonce': nonce_tracker[bot.address],
+                        'gasPrice': gas_price,
+                        'gas': estimated_gas,
+                        'to': bot.address,
+                        'value': amount_to_send,
+                        'chainId': CHAIN_ID,
+                        'data': '0x'
+                    }
+                    
+                    signed = w3.eth.account.sign_transaction(transaction, private_key)
+                    tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
+                    
+                    # 增加nonce，为下一笔交易准备
+                    nonce_tracker[bot.address] += 1
+                    
+                    pending_txs.append({
+                        'hash': tx_hash,
+                        'account_info': account_info,
+                        'time': time.time()
+                    })
+                    
+                    print(f"[{account_info}] 交易已发送: {tx_hash.hex()}")
+                    
+                except Exception as e:
+                    print(f"[{account_info}] 发送交易出错: {str(e)}")
+                    # 发生错误时重置nonce
+                    if bot.address in nonce_tracker:
+                        del nonce_tracker[bot.address]
+                
                 time.sleep(1)
             
-            print("\n")  # 倒计时结束后的换行
-            cycle_count += 1
+            # 检查待确认的交易
+            for tx in pending_txs[:]:
+                try:
+                    receipt = w3.eth.get_transaction_receipt(tx['hash'])
+                    if receipt:
+                        if receipt['status'] == 1:
+                            print(f"[{tx['account_info']}] 交易确认成功: {tx['hash'].hex()}")
+                            cycle_count += 1
+                        else:
+                            print(f"[{tx['account_info']}] 交易失败: {tx['hash'].hex()}")
+                        pending_txs.remove(tx)
+                except Exception:
+                    if time.time() - tx['time'] > 300:  # 5分钟超时
+                        print(f"[{tx['account_info']}] 交易超时: {tx['hash'].hex()}")
+                        pending_txs.remove(tx)
             
-        except KeyboardInterrupt:
-            print("\n停止发送INI循环...")
-            break
-        except Exception as e:
-            print(f"\n循环中出错: {str(e)}")
-            print("尝试继续下一个循环...")
-            time.sleep(5)
+            print(f"\n当前成功次数: {cycle_count}")
+            print(f"待确认交易数: {len(pending_txs)}")
+            
+            # 随机等待20-30秒
+            elapsed = time.time() - cycle_start_time
+            interval = random.uniform(MIN_INTERVAL, MAX_INTERVAL)
+            if elapsed < interval:
+                wait_time = interval - elapsed
+                print(f"\n等待下一次转账... ({int(wait_time)} 秒)")
+                time.sleep(wait_time)
+            
+    except KeyboardInterrupt:
+        print("\n停止转账...")
+        print(f"总成功次数: {cycle_count}")
+        if pending_txs:
+            print(f"还有 {len(pending_txs)} 笔交易待确认")
 
 def show_menu():
-    """显示交互菜单"""
-    print("\n=== 菜单 ===")
-    print("1. 查看状态")
+    """显示主菜单"""
+    print("\n=== INI Chain 机器人 ===")
+    print("1. 查看账户状态")
     print("2. 每日签到")
-    print("3. INI-USDT兑换")
+    print("3. 循环兑换")
     print("4. 创建代币")
-    print("5. 自动（每日签到 & 兑换 & 发送INI到自身）")
-    print("6. 循环发送INI到自身(每1分钟)")
+    print("5. 自动每日签到与兑换")
+    print("6. 循环发送INI到自身 (每20-30秒)")
     print("7. 退出")
-    return input("请选择菜单 (1-7): ")
+    return input("\n请选择功能 (1-7): ")
 
 def cycle_swap(private_keys):
     """每10分钟执行一次兑换循环"""
@@ -1015,7 +1101,7 @@ def main():
             auto_daily_and_swap(private_keys)
         elif choice == "6":
             print("\n=== 循环发送INI到自身 ===")
-            print("机器人将每1分钟发送余额的3-5% INI到自身地址")
+            print("机器人将每20-30秒随机发送余额的3-5% INI到自身地址")
             print("按 Ctrl+C 停止")
             cycle_send_ini_to_self(private_keys)
         elif choice == "7":
