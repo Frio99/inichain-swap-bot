@@ -410,7 +410,7 @@ class IniChainBot:
             
            
             try:
-                gas_estimate = self.router_contract.functions.swapExactTokensForETH(
+                gas_estimate = self.router_contract.functions.swapExactTokensForTokens(
                     amount_in_wei,
                     min_out,
                     path,
@@ -426,10 +426,10 @@ class IniChainBot:
                 print(f"[{account_info}] 估算Gas时出错: {str(e)}")
                 gas_estimate = 201306  # 成功交易的Gas限制
             
-            swap_txn = self.router_contract.functions.swapExactTokensForETH(
-                amount_in_wei,  # 输入金额
-                min_out,        # 最小输出金额
-                path,           # 路径
+            swap_txn = self.router_contract.functions.swapExactTokensForTokens(
+                amount_in_wei,  # USDT 数量
+                min_out,        # 最小获得的 INI 数量
+                path,           # 交易路径
                 self.address,   # 接收地址
                 deadline        # 截止时间
             ).build_transaction({
